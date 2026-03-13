@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# MiniMES 部署脚本
+# 用途：将本地构建的文件上传到服务器并完成部署
+
+set -e  # 遇到错误立即退出
+
+# ============================================
+# 配置区域（请根据实际情况修改）
+# ============================================
+SERVER_USER="your-username"                 # 服务器用户名
+SERVER_HOST="your-server-ip"                # 服务器IP或域名
+BACKEND_PATH="/opt/apps/minimes"            # 后端部署路径
+FRONTEND_PATH="/var/www/minimes"            # 前端部署路径
+BACKEND_SOURCE="./backend/MiniMES.API/publish"  # 后端发布目录
+FRONTEND_SOURCE="./frontend/dist"           # 前端构建目录
+
+# ============================================
+# 颜色输出
+# ============================================
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+echo_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+echo_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# ============================================
+# 检查本地构建文件
+# ============================================
+echo_info "检查本地构建文件..."
+
+if [ ! -d "$BACKEND_SOURCE" ]; then
+    echo_error "后端发布目录不存在: $BACKEND_SOURCE"
+    echo_info "请先运行: cd backend/MiniMES.API && dotnet publish -c Release -o ./publish"
+    exit 1
+fi
+
+if [ ! -d "$FRONTEND_SOURCE" ]; then
+    echo_error "前端构建目录不存在: $FRONTEND_SOURCE"
+    echo_info "请先运行: cd frontend && npm run build"
+    exit 1
+fi
+
+echo_info "本地构建文件检查通过"
+
+# ============================================
+# 上传后端文件
+# ============================================
+echo_info "上传后端文件到服务器..."
+ssh "$SERVER_USER@$SERVER_HOST" "sudo mkdir -p $BACKEND_PATH"
+rsync -avz --delete \
+    --exclude='appsettings.Production.json' \
+    "$BACKEND_SOURCE/" \
+    "$SERVER_USER@$SERVER_HOST:$BACKEND_PATH/"
+
+echo_info "后端文件上传完成"
+
+# ============================================
+# 上传前端文件
+# ============================================
+echo_info "上传前端文件到服务器..."
+ssh "$SERVER_USER@$SERVER_HOST" "sudo mkdir -p $FRONTEND_PATH"
+rsync -avz --delete \
+    "$FRONTEND_SOURCE/" \
+    "$SERVER_USER@$SERVER_HOST:$FRONTEND_PATH/"
+
+echo_info "前端文件上传完成"
+
+# ============================================
+# 重启后端服务
+# ============================================
+echo_info "重启后端服务..."
+ssh "$SERVER_USER@$SERVER_HOST" << 'EOF'
+    sudo systemctl restart minimes
+    sleep 2
+    sudo systemctl status minimes --no-pager
+EOF
+
+echo_info "后端服务重启完成"
+
+# ============================================
+# 重载 Nginx
+# ============================================
+echo_info "重载 Nginx 配置..."
+ssh "$SERVER_USER@$SERVER_HOST" "sudo nginx -t && sudo systemctl reload nginx"
+
+echo_info "Nginx 配置重载完成"
+
+# ============================================
+# 完成
+# ============================================
+echo_info "=========================================="
+echo_info "部署完成！"
+echo_info "=========================================="
+echo_info "访问地址: http://$SERVER_HOST"
+echo_info "查看日志: ssh $SERVER_USER@$SERVER_HOST 'sudo journalctl -u minimes -f'"

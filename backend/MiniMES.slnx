@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="MiniMES.API/MiniMES.API.csproj" />
+  <Project Path="MiniMES.Application/MiniMES.Application.csproj" />
+  <Project Path="MiniMES.Domain/MiniMES.Domain.csproj" />
+  <Project Path="MiniMES.Infrastructure/MiniMES.Infrastructure.csproj" />
+  <Project Path="MiniMES.Shared/MiniMES.Shared.csproj" />
+</Solution>

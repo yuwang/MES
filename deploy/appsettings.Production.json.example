@@ -1,0 +1,18 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=YOUR_MYSQL_HOST;Port=3306;Database=minimes;User=YOUR_MYSQL_USER;Password=YOUR_MYSQL_PASSWORD;"
+  },
+  "Jwt": {
+    "Key": "CHANGE_THIS_TO_A_SECURE_SECRET_KEY_AT_LEAST_32_CHARACTERS_LONG",
+    "Issuer": "MiniMES",
+    "Audience": "MiniMES",
+    "ExpirationHours": 8
+  }
+}

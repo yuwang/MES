@@ -1,0 +1,17 @@
+[Unit]
+Description=MiniMES API Service
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/apps/minimes
+ExecStart=/usr/bin/dotnet /opt/apps/minimes/MiniMES.API.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=minimes
+User=nginx
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5000
+
+[Install]
+WantedBy=multi-user.target
