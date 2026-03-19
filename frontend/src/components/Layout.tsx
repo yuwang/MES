@@ -42,6 +42,7 @@ const Layout = () => {
       key: '/device-monitor',
       icon: <MonitorOutlined />,
       label: '设备监控',
+      roles: ['Admin', 'Technician'],
     },
     {
       key: '/products',
