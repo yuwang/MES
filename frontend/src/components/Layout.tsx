@@ -10,6 +10,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
+  MonitorOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../stores/auth';
 
@@ -36,6 +37,11 @@ const Layout = () => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: '生产看板',
+    },
+    {
+      key: '/device-monitor',
+      icon: <MonitorOutlined />,
+      label: '设备监控',
     },
     {
       key: '/products',

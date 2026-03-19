@@ -7,6 +7,7 @@ import WorkstationList from '../pages/Workstation/List';
 import WorkOrderList from '../pages/WorkOrder/List';
 import WorkReportList from '../pages/WorkReport/List';
 import UserList from '../pages/User/List';
+import DeviceMonitor from '../pages/DeviceMonitor';
 
 const router = createBrowserRouter([
   {
@@ -24,6 +25,10 @@ const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <Dashboard />,
+      },
+      {
+        path: 'device-monitor',
+        element: <DeviceMonitor />,
       },
       {
         path: 'products',

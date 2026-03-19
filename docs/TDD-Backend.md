@@ -8,6 +8,7 @@
 - **数据库**：MySQL 8.0+
 - **ORM**：Entity Framework Core 8 (Code-First)
 - **认证**：JWT (JSON Web Token)
+- **实时推送**：ASP.NET Core SignalR
 - **文档**：Swagger/OpenAPI 3.0
 - **日志**：Serilog
 - **部署**：Linux + systemd
@@ -20,6 +21,7 @@
 | MySQL   | 开源、稳定、适合中小规模数据        |
 | EF Core | Code-First 开发效率高，支持迁移管理 |
 | JWT     | 无状态认证，适合 API 服务           |
+| SignalR | 内置 WebSocket 抽象，支持自动降级和 JWT 认证，无需额外依赖 |
 
 ## 2. 系统架构设计
 
@@ -27,8 +29,13 @@
 
 ```
 MiniMES.API          # Web API 层（控制器、中间件、过滤器）
+  ├── Controllers/   # REST API 控制器
+  ├── Hubs/          # SignalR Hub（DeviceMonitorHub）
+  ├── BackgroundServices/ # 后台任务（DeviceDataSimulator）
+  ├── Filters/       # 过滤器
+  └── Middlewares/   # 中间件
 MiniMES.Application  # 应用层（DTOs、接口定义）
-  ├── DTOs/          # 数据传输对象
+  ├── DTOs/          # 数据传输对象（含 Device/DeviceStatusDto）
   └── Interfaces/    # 服务和仓储接口定义
       ├── Services/  # 业务服务接口
       └── Repositories/ # 数据访问接口
@@ -622,3 +629,66 @@ server {
 - 使用 JMeter 或 k6 进行压力测试
 - 测试报工接口的并发性能
 - 验证系统在 100 并发下的响应时间
+
+## 12. 实时推送架构（SignalR）
+
+### 12.1 组件说明
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `DeviceMonitorHub` | `MiniMES.API/Hubs/` | SignalR Hub，处理客户端连接/断开，管理 Group 订阅 |
+| `DeviceDataSimulator` | `MiniMES.API/BackgroundServices/` | BackgroundService，每秒生成模拟数据并推送 |
+| `DeviceStatusDto` | `MiniMES.Application/DTOs/Device/` | 设备状态数据契约 |
+
+> `DeviceDataSimulator` 放在 API 层而非 Infrastructure 层，原因是它直接依赖 `IHubContext<DeviceMonitorHub>`，属于表现层关注点。
+
+### 12.2 数据流
+
+```
+DeviceDataSimulator（每秒）
+  → IHubContext<DeviceMonitorHub>.Clients.Group("all-devices")
+  → SendAsync("ReceiveDeviceStatus", List<DeviceStatusDto>)
+  → 所有已连接客户端
+```
+
+### 12.3 JWT 认证集成
+
+SignalR WebSocket 握手时无法设置自定义 Header，通过 query string 传递 token：
+
+```csharp
+// Program.cs — JWT 事件配置
+options.Events = new JwtBearerEvents
+{
+    OnMessageReceived = ctx =>
+    {
+        var token = ctx.Request.Query["access_token"];
+        if (!string.IsNullOrEmpty(token) && ctx.Request.Path.StartsWithSegments("/hubs"))
+            ctx.Token = token;
+        return Task.CompletedTask;
+    }
+};
+```
+
+### 12.4 CORS 配置
+
+SignalR 需要 `AllowCredentials()`，不能与 `AllowAnyOrigin()` 同时使用，因此使用独立策略：
+
+- REST API：`AllowAll` 策略（`AllowAnyOrigin`）
+- SignalR Hub：`AllowFrontend` 策略（`WithOrigins` 从配置读取 + `AllowCredentials`）
+
+允许来源在 `appsettings.json` 的 `Cors.AllowedOrigins` 中配置，支持多环境覆盖。
+
+### 12.5 Hub 端点
+
+```
+WebSocket: ws://host/hubs/device-monitor
+协商:      POST /hubs/device-monitor/negotiate
+```
+
+客户端事件：
+
+| 事件 | 方向 | 说明 |
+|------|------|------|
+| `ReceiveDeviceStatus` | 服务端 → 客户端 | 推送 `DeviceStatusDto[]` |
+| `SubscribeDevice(deviceId)` | 客户端 → 服务端 | 加入设备专属 Group |
+| `UnsubscribeDevice(deviceId)` | 客户端 → 服务端 | 离开设备专属 Group |

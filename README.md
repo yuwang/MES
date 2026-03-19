@@ -11,8 +11,8 @@ MiniMES/
 │   ├── TDD-Backend.md      # 后端技术设计文档
 │   └── TDD-Frontend.md     # 前端技术设计文档
 ├── backend/                # 后端项目
-│   ├── MiniMES.API/        # Web API 层
-│   ├── MiniMES.Application/ # 应用服务层
+│   ├── MiniMES.API/        # Web API 层（Controllers、Hubs、BackgroundServices）
+│   ├── MiniMES.Application/ # 应用服务层（接口定义、DTOs）
 │   ├── MiniMES.Domain/     # 领域模型层
 │   ├── MiniMES.Infrastructure/ # 基础设施层
 │   ├── MiniMES.Shared/     # 共享层
@@ -20,7 +20,10 @@ MiniMES/
 ├── frontend/               # 前端项目
 │   ├── src/                # 源代码
 │   ├── package.json        # 依赖配置
-│   └── vite.config.ts      # Vite 配置
+│   └── vite.config.ts      # Vite 配置（含 /api 和 /hubs 代理）
+├── deploy/                 # 部署配置
+│   ├── nginx.conf          # Nginx 配置（含 SignalR WebSocket 代理）
+│   └── README.md           # 部署指南
 └── README.md              # 项目说明
 ```
 
@@ -36,13 +39,14 @@ MiniMES/
 
 ### 前端
 
-- React 18 + TypeScript
-- Vite 5
-- Ant Design 5
+- React 19 + TypeScript
+- Vite 7
+- Ant Design 6
 - Zustand (状态管理)
-- React Router v6
+- React Router v7
 - Axios
-- ECharts
+- ECharts 6
+- @microsoft/signalr（设备实时监控）
 
 ## 配置说明
 
@@ -186,6 +190,7 @@ mysql -h your_host -u your_user -p minimes < docs/init-data.sql
 - **生产工单管理**：工单下发、状态流转、工单查询
 - **车间报工执行**：现场报工提交、报工明细查询
 - **生产看板数据**：实时进度监控、良率统计、产能分析
+- **设备实时监控**：WebSocket 推送设备温度/转速/报警状态，ECharts 实时折线图
 
 ## 开发指南
 

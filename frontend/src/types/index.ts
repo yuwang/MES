@@ -204,3 +204,14 @@ export interface RoleDto {
   roleName: string;
   permissions: string;
 }
+
+// 设备实时状态
+export interface DeviceStatusDto {
+  deviceId: string;
+  deviceName: string;
+  temperature: number;
+  speed: number;
+  isAlarming: boolean;
+  alarmMessage: string;
+  timestamp: string;
+}

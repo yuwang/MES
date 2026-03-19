@@ -2,7 +2,9 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MiniMES.API.BackgroundServices;
 using MiniMES.API.Filters;
+using MiniMES.API.Hubs;
 using MiniMES.API.Middlewares;
 using MiniMES.Infrastructure;
 using MiniMES.Infrastructure.Data;
@@ -44,7 +46,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 配置 JWT 认证
+// 配置 JWT 认证（支持 WebSocket query string，SignalR 需要）
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -59,6 +61,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured")))
         };
+        // SignalR 通过 query string 传递 token
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                var token = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) && ctx.Request.Path.StartsWithSegments("/hubs"))
+                    ctx.Token = token;
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -66,7 +79,16 @@ builder.Services.AddAuthorization();
 // 注册Infrastructure层服务
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// 注册 SignalR
+builder.Services.AddSignalR();
+
+// 注册设备数据模拟后台任务
+builder.Services.AddHostedService<DeviceDataSimulator>();
+
 // 配置 CORS
+// REST API 使用宽松策略；SignalR Hub 使用带凭据的精确来源策略
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -74,6 +96,13 @@ builder.Services.AddCors(options =>
         policy.AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader();
+    });
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -95,6 +124,10 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// 映射 SignalR Hub（使用带凭据的 CORS 策略）
+app.MapHub<DeviceMonitorHub>("/hubs/device-monitor")
+.RequireCors("AllowFrontend");
 
 // 初始化数据库
 using (var scope = app.Services.CreateScope())

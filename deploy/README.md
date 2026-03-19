@@ -100,6 +100,19 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
+    # SignalR WebSocket 代理（设备实时监控必须配置）
+    location /hubs/ {
+        proxy_pass http://localhost:5000/hubs/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";  # 注意：必须是 "upgrade"，不能是 keep-alive
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;  # WebSocket 长连接，超时需拉长
+        proxy_send_timeout 3600s;
+    }
+
     access_log /var/log/nginx/minimes_access.log;
     error_log /var/log/nginx/minimes_error.log;
 }
@@ -116,28 +129,7 @@ sudo systemctl reload nginx
 
 ⚠️ 安全密钥可手动指定，或生成：`openssl rand -base64 32`
 
-创建 `/opt/apps/minimes/appsettings.Production.json`：
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "AllowedHosts": "*",
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Port=3306;Database=minimes;User=root;Password=YOUR_MYSQL_PASSWORD;"
-  },
-  "Jwt": {
-    "Key": "YOUR_PRODUCTION_SECRET_KEY_AT_LEAST_32_CHARACTERS_LONG",
-    "Issuer": "MiniMES",
-    "Audience": "MiniMES",
-    "ExpirationHours": 8
-  }
-}
-```
+根据`backend/MiniMES.API/appsettings.json` 创建 `/opt/apps/minimes/appsettings.Production.json`
 
 #### 3.5 配置 systemd 服务
 
@@ -271,6 +263,18 @@ sudo systemctl status minimes
 
 # 测试后端
 curl http://localhost:5000/api/health
+```
+
+**4. 设备监控页面 WebSocket 连接失败（404）**
+
+检查 Nginx 是否配置了 `/hubs/` 代理，且 `Connection` header 必须为 `"upgrade"`：
+
+```nginx
+location /hubs/ {
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";  # 不能写 keep-alive
+    proxy_read_timeout 3600s;
+}
 ```
 
 ---

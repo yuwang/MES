@@ -4,26 +4,26 @@
 
 ### 1.1 核心技术
 
-- **框架**：React 18 + TypeScript
-- **构建工具**：Vite 5
-- **UI 组件库**：Ant Design 5
-- **状态管理**：Zustand
-- **路由**：React Router v6
+- **框架**：React 19 + TypeScript
+- **构建工具**：Vite 7
+- **UI 组件库**：Ant Design 6
+- **状态管理**：Zustand 5
+- **路由**：React Router v7
 - **HTTP 客户端**：Axios
-- **图表库**：ECharts
-- **表单验证**：React Hook Form + Zod
-- **样式方案**：CSS Modules + Tailwind CSS
+- **图表库**：ECharts 6（echarts-for-react）
+- **实时通信**：@microsoft/signalr
 
 ### 1.2 选型理由
 
 | 技术 | 理由 |
 |------|------|
-| React 18 | 生态成熟、性能优秀、社区活跃 |
+| React 19 | 生态成熟、性能优秀、社区活跃 |
 | TypeScript | 类型安全、提升代码质量和可维护性 |
 | Vite | 开发体验好、构建速度快 |
-| Ant Design | 企业级 UI 组件库、开箱即用 |
-| Zustand | 轻量级状态管理、API 简洁 |
-| ECharts | 功能强大、适合数据可视化 |
+| Ant Design 6 | 企业级 UI 组件库、开箱即用 |
+| Zustand 5 | 轻量级状态管理、API 简洁 |
+| ECharts 6 | 功能强大、适合数据可视化 |
+| @microsoft/signalr | 官方 SignalR 客户端，支持自动重连和 JWT 认证 |
 
 ## 2. 项目结构设计
 
@@ -34,45 +34,30 @@ src/
 │   ├── user.ts            # 用户管理接口
 │   ├── product.ts         # 产品管理接口
 │   ├── workstation.ts     # 工位管理接口
-│   ├── workOrder.ts       # 工单管理接口
-│   ├── workReport.ts      # 报工管理接口
+│   ├── workorder.ts       # 工单管理接口
+│   ├── workreport.ts      # 报工管理接口
 │   └── dashboard.ts       # 看板数据接口
 ├── components/            # 通用组件
-│   ├── Layout/           # 布局组件
-│   ├── Table/            # 表格组件
-│   ├── Form/             # 表单组件
-│   └── Chart/            # 图表组件
+│   └── Layout.tsx         # 全局布局（Header + Sider + Content）
+├── hooks/                 # 自定义 Hooks
+│   └── useDeviceMonitor.ts # SignalR 连接封装（设备实时监控）
 ├── pages/                # 页面组件
-│   ├── Login/            # 登录页
-│   ├── Dashboard/        # 生产看板
+│   ├── Login.tsx         # 登录页
+│   ├── Dashboard.tsx     # 生产看板
+│   ├── DeviceMonitor/    # 设备实时监控（SignalR + ECharts）
 │   ├── User/             # 用户管理
 │   ├── Product/          # 产品管理
 │   ├── Workstation/      # 工位管理
 │   ├── WorkOrder/        # 工单管理
 │   └── WorkReport/       # 报工管理
 ├── stores/               # 状态管理
-│   ├── authStore.ts      # 认证状态
-│   ├── userStore.ts      # 用户状态
-│   └── globalStore.ts    # 全局状态
+│   └── auth.ts           # 认证状态（Zustand + persist）
 ├── types/                # TypeScript 类型定义
-│   ├── api.ts            # API 响应类型
-│   ├── models.ts         # 数据模型类型
-│   └── enums.ts          # 枚举类型
+│   └── index.ts          # 所有 DTO 类型（含 DeviceStatusDto）
 ├── utils/                # 工具函数
-│   ├── request.ts        # HTTP 请求封装
-│   ├── auth.ts           # 认证工具
-│   ├── format.ts         # 格式化工具
-│   └── constants.ts      # 常量定义
-├── hooks/                # 自定义 Hooks
-│   ├── useAuth.ts        # 认证 Hook
-│   ├── useTable.ts       # 表格 Hook
-│   └── usePermission.ts  # 权限 Hook
-├── router/               # 路由配置
-│   └── index.tsx
-├── styles/               # 全局样式
-│   └── global.css
-├── App.tsx               # 根组件
-└── main.tsx              # 入口文件
+│   └── request.ts        # Axios 封装（自动注入 Bearer token）
+└── router/               # 路由配置
+    └── index.tsx
 ```
 
 ## 3. 核心功能设计
@@ -876,3 +861,53 @@ server {
 - 使用 TypeScript 严格模式
 - 组件拆分：单个组件不超过 300 行
 - 使用函数式组件 + Hooks
+
+## 10. 实时通信设计（SignalR）
+
+### 10.1 useDeviceMonitor Hook
+
+封装 SignalR 连接生命周期，页面组件只消费数据，不关心连接细节。
+
+```typescript
+// hooks/useDeviceMonitor.ts
+export function useDeviceMonitor() {
+  // 连接建立：withAutomaticReconnect() 自动处理断线重连
+  // JWT 注入：accessTokenFactory 从 localStorage 读取 token
+  // 数据存储：Map<deviceId, { latest, history[] }>
+  //           每台设备保留最近 60 条（对应 60 秒滚动窗口）
+  return { devices, connected, error };
+}
+```
+
+### 10.2 Vite 开发代理
+
+开发环境需同时代理 REST API 和 SignalR WebSocket：
+
+```typescript
+// vite.config.ts
+proxy: {
+  '/api': { target: 'http://localhost:5000', changeOrigin: true },
+  '/hubs': { target: 'http://localhost:5000', changeOrigin: true, ws: true },
+}
+```
+
+`ws: true` 是关键，缺少此配置 SignalR 协商请求会返回 404。
+
+### 10.3 DeviceMonitor 页面结构
+
+```
+DeviceMonitor
+├── 连接状态 Badge（绿/红）
+└── Row（每台设备一个 Col）
+    └── Card（设备名 + 报警/正常 Tag）
+        ├── Alert 区域（固定高度，visibility 控制显隐，不影响下方布局）
+        ├── Statistic Row（当前温度 + 转速，超阈值变红）
+        └── ReactECharts（双 Y 轴折线图，animation: false，60 秒滚动窗口）
+```
+
+### 10.4 ECharts 配置要点
+
+- `animation: false`：每秒刷新场景下关闭动画，避免视觉抖动
+- 双 Y 轴：温度（50-110°C）和转速（800-3200 RPM）量纲差异大，各用独立 Y 轴
+- `markLine`：在图上绘制报警阈值参考线（温度 90°C / 转速 2800 RPM）
+- `notMerge`：每次数据更新完全替换 option，避免历史数据残留
